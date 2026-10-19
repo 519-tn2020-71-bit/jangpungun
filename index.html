@@ -974,7 +974,7 @@ function draw(t){
     const ms=e.mount&&!e.down&&typeof drawHorse==="function"?sy:null;if(ms!=null){drawHorse(e,sx,ms,t,0);sy-=18;sx+=e.dir==="l"?2:e.dir==="r"?-2:0}
     const av=AV[AVA_OF[e.look]];let topY;ctx.globalAlpha=e.ghost?0.5:(e.fade!=null?e.fade:1);
     if(e.echo&&av){for(let k=0;k<e.echo;k++){ctx.globalAlpha=0.28;drawAvatar(e,av,sx+Math.round(Math.cos(t*2.3+k*0.8)*(7+k*1.5)),sy-Math.round(Math.abs(Math.sin(t*3+k))*5)-k,t)}ctx.globalAlpha=1}
-    if(e.look==="bell")topY=drawBell(e,sx,sy,t);else if(av){if(e.down){const hh=av.d.height/Q;ctx.save();ctx.translate(sx+8,sy+10);ctx.rotate(Math.PI/2*e.down);ctx.translate(-(sx+8),-(sy+15-hh/2));drawAvatar(e,av,sx,sy,t);ctx.restore();topY=sy-6}else topY=drawAvatar(e,av,sx,sy,t)}
+    if(e.look==="bell")topY=drawBell(e,sx,sy,t);else if(av){if(e.down&&typeof drawDown==="function"&&drawDown(e,sx,sy,t)){topY=sy-10}else if(e.down){const hh=av.d.height/Q;ctx.save();ctx.translate(sx+8,sy+10);ctx.rotate(Math.PI/2*e.down);ctx.translate(-(sx+8),-(sy+15-hh/2));drawAvatar(e,av,sx,sy,t);ctx.restore();topY=sy-6}else topY=drawAvatar(e,av,sx,sy,t)}
     else{
       R(sx+1,sy+13,14,3,"rgba(0,0,0,.2)");R(sx+3,sy+12,10,1,"rgba(0,0,0,.1)");
       let fr=0;if(e.moving)fr=e.step%2?(e.prog<.5?3:0):(e.prog<.5?1:2);else if(e.look==="chicken"&&Math.sin(t*3+ph)>0.75)fr=1;
@@ -3299,6 +3299,22 @@ function amb(kind){if(typeof AU==="undefined"||!AU.ctx||!AU.sfxOn)return;const a
   if(crowd>=6&&r<0.4)amb("murmur");
 },1400)})();
 
+})();
+</script>
+<script id="down">
+const DOWN_SPEC={"pwander":["w",32],"foe":["w",38],"gun":["w",30],"gp":["w",30],"gpnun":["w",30]};
+/* ═════════ 쓰러진 모습 그림 (여러 게임 공통, 2026-10-19) ═════════
+   인물의 down 이 켜지면 서 있는 그림을 눕히는 대신 art/d_<모습>.png(한 장에 한 사람, 자홍 배경)를 쓴다.
+   DOWN_SPEC 은 downput.js 가 게임마다 넣는다: {모습:["w"|"h", 크기(놀이 점)]}. 그림이 없으면 예전처럼 눕혀 그린다.
+   엔진 draw 의 ‘else if(av){if(e.down&&typeof drawDown==="function"&&drawDown(e,sx,sy,t))…’ 자리에서 불린다. */
+(()=>{if(window.__down)return;window.__down=1;const IMG={};
+  for(const [look,sp] of Object.entries(DOWN_SPEC)){const img=new Image();img.onload=()=>{try{const W=img.naturalWidth,H=img.naturalHeight,c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(img,0,0);
+      const d=g.getImageData(0,0,W,H),a=d.data,cs=[[2,2],[W-3,2],[2,H-3],[W-3,H-3]].map(([x,y])=>{const i=(y*W+x)*4;return[a[i],a[i+1],a[i+2]]});keyOut(a,W,H,[0,1,2].map(k=>cs.reduce((s,q)=>s+q[k],0)/4));g.putImageData(d,0,0);
+      let x0=W,x1=0,y0=H,y1=0;for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(a[(y*W+x)*4+3]){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+      const w=x1-x0+1,h=y1-y0+1,sc=(sp[1]*Q)/(sp[0]==="w"?w:h),o=document.createElement("canvas");o.width=Math.max(1,Math.round(w*sc));o.height=Math.max(1,Math.round(h*sc));const og=o.getContext("2d");og.imageSmoothingQuality="high";og.drawImage(c,x0,y0,w,h,0,0,o.width,o.height);
+      const od=og.getImageData(0,0,o.width,o.height),oa=od.data;for(let i=3;i<oa.length;i+=4)oa[i]=oa[i]>110?255:0;og.putImageData(od,0,0);IMG[look]=o}catch(e){}};img.src="art/d_"+look+".png"}
+  window.drawDown=function(e,sx,sy,t){const c=IMG[e.look];if(!c)return false;const w=c.width/Q,h=c.height/Q;ctx.fillStyle="rgba(0,0,0,.2)";ctx.beginPath();ctx.ellipse(sx+8,sy+15,w*0.45,3,0,0,Math.PI*2);ctx.fill();
+    ctx.drawImage(c,Math.round(sx+8-w/2),Math.round(sy+16-h),w,h);return true};
 })();
 </script>
 </body>
