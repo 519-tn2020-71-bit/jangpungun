@@ -575,7 +575,7 @@ function sprite(lookKey,dir,f,blink){
 /* ═════════ 그림 아바타 (앞·옆·뒤 3방향 시트) ═════════ */
 const AVA_OF={pkid:"a_pkid",pwander:"a_pwander",phallim:"a_phallim",pgen:"a_pgen",gp:"a_gp",gpnun:"a_gpnun",yang:"a_yang",yangnun:"a_yangnun",nun:"a_nun",oldnun:"a_oldnun",monk:"a_monk",jsr:"a_jsr",lee:"a_lee",ho:"a_ho",gun:"a_gun",jaran:"a_jaran",
   wang:"a_wang",buyong:"a_buyong",won:"a_won",hwang:"a_hwang",yu:"a_yu",nan:"a_nan",clown:"a_clown",bandit:"a_bandit",emperor:"a_emperor",guard:"a_guard",sar:"a_guard",villager:"a_villager",woman:"a_woman2",maid:"a_maid",sage:"a_sage",official:"a_teacher",foe:"a_hogak",kid2:"a_dongja"};
-const AVA_H={a_pkid:31,a_gun:31,a_oldnun:36,a_dongja:29,a_sage:39};
+const AVA_H={a_pkid:31,a_gun:31,a_oldnun:36,a_dongja:29,a_sage:39,a_hogak:42,a_monk:48,a_nun:47,a_teacher:42,a_lee:43,a_wang:43,a_guard:43,a_jsr:42,a_emperor:42,a_phallim:42,a_pgen:44,a_villager:43,a_clown:42};
 const AV={};
 function keyOut(a,W,H,bg){
   const near=i=>Math.abs(a[i]-bg[0])+Math.abs(a[i+1]-bg[1])+Math.abs(a[i+2]-bg[2]);
@@ -2376,6 +2376,117 @@ function fieldBattle(cfg){
 /* 적병 몇을 빈 칸에 세움 */
 function spawnFoes(n,cands,look,name){const out=[];for(const [x,y] of cands){if(out.length>=n)break;if(blocked(x,y,null)||(G.player.tx===x&&G.player.ty===y))continue;const e=npc("sol"+out.length+"_"+x,look||"hogak",name||"적병",x,y,"l",null,{fixed:1});G.map.npcs.push(e);out.push(e)}return out}
 
+/* ═════════ 음악에 맞춰 누르는 놀이 (여러 게임 공통, 2026-10-19) ═════════
+   장구 장단이 깔리고, 음표가 오른쪽에서 흘러와 붉은 판정선에 닿을 때 누르면 그 악기 소리가 난다.
+   높은 음은 위, 낮은 음은 아래에 그린다. 피리는 긴 음표를 누르고 있는 동안 소리가 이어진다(떼면 멈춤).
+   악기: piri(피리) · gayageum(가야금) · geomungo(거문고) · janggu(장구: 덩·쿵·덕) · kkwaeng(꽹과리)
+   musicPlay({eb,title,desc,inst,bpm,base,scale,song:[[박,길이(박),음 번호]…],btn,end:[잘함,보통,못함]})
+   엔진의 LITE(있으면)·UI·setBodyTalking·esc·AU·auInit·auOut·noiseSrc·gDrum 을 쓴다. 자동 진행기는 data-hot 이 붙은 [data-press] 를 누른다. */
+function muOpen(html){UI.modal=true;if(typeof setBodyTalking==="function")setBodyTalking(true);const v=document.createElement("div");v.className="veil";v.innerHTML=`<div class="sheet gm" style="text-align:center">${html}</div>`;document.getElementById("ui").appendChild(v);return v}
+function muClose(v){v.remove();UI.modal=false;UI.onKey=null;if(typeof setBodyTalking==="function")setBodyTalking(false)}
+function mgCanvas(html,w,h){const v=muOpen(html+`<canvas class="gmc" width="${w}" height="${h}" style="width:100%;max-width:${w*1.6}px;image-rendering:pixelated;border:2px solid var(--ink2);background:#cfe3ea;display:block;margin:10px auto"></canvas>`);return [v,v.querySelector("canvas.gmc")]}
+const MV={
+  piri(f,vel){const ac=AU.ctx,t=ac.currentTime+0.005;
+    const o=ac.createOscillator(),o2=ac.createOscillator(),g=ac.createGain(),bp=ac.createBiquadFilter(),lp=ac.createBiquadFilter(),l=ac.createOscillator(),lg=ac.createGain(),m2=ac.createGain();
+    o.type="square";o2.type="sawtooth";o.frequency.setValueAtTime(f*0.9,t);o.frequency.exponentialRampToValueAtTime(f,t+0.09);o2.frequency.setValueAtTime(f*0.9,t);o2.frequency.exponentialRampToValueAtTime(f*1.003,t+0.09);
+    l.frequency.value=5.8;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(f*0.022,t+0.45);l.connect(lg);lg.connect(o.frequency);lg.connect(o2.frequency);
+    bp.type="bandpass";bp.frequency.value=1250;bp.Q.value=1.8;lp.type="lowpass";lp.frequency.value=3400;m2.gain.value=0.5;o.connect(bp);o2.connect(m2);m2.connect(bp);bp.connect(lp);lp.connect(g);
+    g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(vel*1.25,t+0.04);g.gain.linearRampToValueAtTime(vel,t+0.14);auOut(g,true);
+    const n=noiseSrc(t,0.32),nf=ac.createBiquadFilter(),ng=ac.createGain();nf.type="bandpass";nf.Q.value=3;nf.frequency.setValueAtTime(700,t);nf.frequency.exponentialRampToValueAtTime(2800,t+0.22);
+    ng.gain.setValueAtTime(0.0001,t);ng.gain.linearRampToValueAtTime(vel*1.6,t+0.03);ng.gain.exponentialRampToValueAtTime(0.0008,t+0.3);n.connect(nf);nf.connect(ng);auOut(ng,true);
+    o.start(t);o2.start(t);l.start(t);let done=false;
+    return ()=>{if(done)return;done=true;const e=ac.currentTime;g.gain.cancelScheduledValues(e);g.gain.setValueAtTime(Math.max(0.0002,g.gain.value||vel),e);g.gain.exponentialRampToValueAtTime(0.0008,e+0.12);for(const x of [o,o2,l])x.stop(e+0.15)}},
+  pluckish(f,vel,dark){const ac=AU.ctx,t=ac.currentTime+0.005,dur=dark?1.6:1.1;
+    const o=ac.createOscillator(),o2=ac.createOscillator(),g=ac.createGain(),lp=ac.createBiquadFilter();o.type=dark?"sawtooth":"triangle";o2.type="sine";
+    o.frequency.setValueAtTime(f*(dark?1.03:1.01),t);o.frequency.exponentialRampToValueAtTime(f,t+0.06);o2.frequency.value=f*2;
+    if(dark){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=4.5;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(f*0.025,t+0.4);l.connect(lg);lg.connect(o.frequency);l.start(t);l.stop(t+dur)}
+    lp.type="lowpass";lp.frequency.setValueAtTime(dark?1600:3600,t);lp.frequency.exponentialRampToValueAtTime(dark?300:900,t+dur*0.6);const g2=ac.createGain();g2.gain.value=0.25;o.connect(lp);o2.connect(g2);g2.connect(lp);lp.connect(g);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vel*1.4,t+0.006);g.gain.exponentialRampToValueAtTime(0.0008,t+dur);auOut(g,true);
+    const n=noiseSrc(t,0.05),nf=ac.createBiquadFilter(),ng=ac.createGain();nf.type=dark?"lowpass":"highpass";nf.frequency.value=dark?500:2500;ng.gain.setValueAtTime(vel*(dark?1.2:0.6),t);ng.gain.exponentialRampToValueAtTime(0.0008,t+0.05);n.connect(nf);nf.connect(ng);auOut(ng,false);
+    o.start(t);o2.start(t);o.stop(t+dur+0.05);o2.stop(t+dur+0.05);return ()=>{}},
+  gayageum(f,vel){return MV.pluckish(f,vel,false)},
+  geomungo(f,vel){return MV.pluckish(f*0.5,vel,true)},
+  janggu(f,vel,d){const ac=AU.ctx,t=ac.currentTime+0.005;if(typeof gDrum==="function")gDrum(["덩","쿵","덕"][d%3],t,0.6);return ()=>{}},
+  kkwaeng(f,vel){const ac=AU.ctx,t=ac.currentTime+0.005,n=noiseSrc(t,0.2),bf=ac.createBiquadFilter(),g=ac.createGain();bf.type="bandpass";bf.frequency.value=5000;bf.Q.value=3;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vel*2,t+0.003);g.gain.exponentialRampToValueAtTime(0.0008,t+0.18);n.connect(bf);bf.connect(g);auOut(g,false);
+    const o=ac.createOscillator(),og=ac.createGain();o.type="square";o.frequency.value=2300+((f|0)%3)*120;og.gain.setValueAtTime(vel*0.5,t);og.gain.exponentialRampToValueAtTime(0.0008,t+0.16);o.connect(og);auOut(og,false);o.start(t);o.stop(t+0.2);return ()=>{}}
+};
+function musicPlay(o){if(typeof LITE==="function"&&LITE())return Promise.resolve();return new Promise(res=>{
+  if(typeof auInit==="function")auInit();const spb=60/o.bpm,lead=2.2,W=320,H=150,HX=64,SPD=110,inst=o.inst||"piri",sus=inst==="piri",perc=inst==="janggu"||inst==="kkwaeng";
+  const scale=o.scale||[0,2,5,7,9];
+  const notes=o.song.map(([b,len,d])=>({t:lead+b*spb,len:sus?len*spb:0.12,d,hit:0}));const last=notes[notes.length-1],end=last.t+Math.max(last.len,0.3)+1.2;
+  const fq=d=>o.base*Math.pow(2,(Math.floor(d/scale.length)*12+scale[d%scale.length])/12);
+  const tip2=sus?" 긴 음표는 끝까지 누르고 있어요.":"";
+  const [v,c]=mgCanvas(`<span class="eb">${esc(o.eb||"장단")}</span><h2>${esc(o.title)}</h2><p class="note">${esc(o.desc)} 음표가 붉은 줄에 닿을 때 누르세요.${tip2} (Space · E · 단추)</p>`,W,H);
+  v.firstElementChild.insertAdjacentHTML("beforeend",`<div class="row"><button class="btn pri pressb" data-press style="touch-action:none">${esc(o.btn||"누르기")}</button></div><div class="st" id="muSt">&nbsp;</div>`);
+  const g=c.getContext("2d"),st=v.querySelector("#muSt"),btn=v.querySelector("[data-press]");let t0=performance.now(),alive=true,cur=null,stop=null,pop=null,beat=-9,good=0;
+  const now=()=>(performance.now()-t0)/1000,ac=()=>typeof AU!=="undefined"&&AU.ctx&&AU.sfxOn;
+  const lanes=perc?3:6,yOf=d=>perc?[40,75,110][d%3]:H-28-(d%6)*17;
+  const draw=()=>{if(!alive)return;const t=now();
+    g.fillStyle="#efe6cf";g.fillRect(0,0,W,H);for(let i=0;i<lanes;i++){g.fillStyle=i%2?"#e7dcc0":"#efe6cf";g.fillRect(0,yOf(i)-(perc?16:8),W,perc?32:17)}
+    if(perc){g.fillStyle="#8a6a44";g.font="12px sans-serif";["덩","쿵","덕"].forEach((s,i)=>g.fillText(s,6,yOf(i)+4))}
+    g.fillStyle="rgba(180,40,30,.85)";g.fillRect(HX-1,0,3,H);
+    const bt=Math.floor((t-lead)/spb);if(bt>beat&&!o.noBeat&&ac()){beat=bt;if(typeof gDrum==="function")gDrum(((bt%4)+4)%4===0?"덩":"덕",AU.ctx.currentTime+0.01,((bt%4)+4)%4===0?0.32:0.14)}
+    for(const n of notes){const x=HX+(n.t-t)*SPD,w=Math.max(10,n.len*SPD-6),y=yOf(n.d);if(x+w<-10||x>W+10)continue;
+      g.fillStyle=n.hit===2||n.hit===1?"#9ac48a":n.hit===-1?"#c9b9a9":inst==="geomungo"?"#5a3b22":inst==="kkwaeng"?"#b8902a":"#2f4a6d";g.beginPath();g.ellipse(x+5,y,perc?9:6,perc?9:6,0,0,7);g.fill();if(sus&&n.len>spb*1.1)g.fillRect(x+5,y-3,w-5,6)}
+    if(pop&&t-pop.t<0.6){g.globalAlpha=1-(t-pop.t)/0.6;g.fillStyle=pop.c;g.font="bold 18px sans-serif";g.fillText(pop.s,HX+10,24-(t-pop.t)*20);g.globalAlpha=1}
+    for(const n of notes)if(!n.hit&&t>n.t+0.22){n.hit=-1;pop={s:"놓침",c:"#8a6a44",t}}
+    if(cur&&t>=cur.t+cur.len){if(stop)stop();stop=null;cur.hit=2;cur=null}
+    const nx=notes.find(n=>!n.hit);v.dataset.hot=nx&&Math.abs(nx.t-t)<0.06?"1":"";
+    if(t>end){alive=false;const E=o.end||["가락이 흥겹게 이어진다","가락이 이어진다","장단이 고르지 않지만, 가락은 이어진다"];st.textContent=good>=notes.length-1?E[0]:good>=notes.length/2?E[1]:E[2];if(stop)stop();setTimeout(()=>{muClose(v);res(good)},900);return}
+    requestAnimationFrame(draw)};requestAnimationFrame(draw);
+  const press=()=>{if(!alive||cur)return;const t=now(),n=notes.find(x=>!x.hit&&Math.abs(x.t-t)<0.2);
+    if(!n){if(ac()&&sus){const s=MV.piri(fq(0)*0.94,0.03);setTimeout(s,90)}pop={s:sus?"삐익":"어긋남",c:"#8a6a44",t};return}
+    const e=Math.abs(n.t-t);good++;if(ac())stop=MV[inst](fq(n.d),inst==="piri"?0.09:0.12,n.d);pop=e<0.08?{s:"좋다!",c:"#b53a2c",t}:{s:"그렇지",c:"#2f4a6d",t};
+    if(sus){n.hit=1;cur=n}else{n.hit=2;stop=null}};
+  const release=()=>{if(!cur)return;if(stop)stop();stop=null;cur.hit=2;cur=null};
+  btn.addEventListener("pointerdown",e=>{e.preventDefault();press()});btn.addEventListener("pointerup",e=>{e.preventDefault();release()});btn.addEventListener("pointerleave",release);
+  btn.addEventListener("click",e=>{if(e.detail===0){press();setTimeout(release,250)}});
+  const kd=e=>{if(["Space","KeyE","Enter"].includes(e.code)&&!e.repeat){e.preventDefault();press()}},ku=e=>{if(["Space","KeyE","Enter"].includes(e.code))release()};
+  addEventListener("keydown",kd,true);addEventListener("keyup",ku,true);const clean=setInterval(()=>{if(!alive){removeEventListener("keydown",kd,true);removeEventListener("keyup",ku,true);clearInterval(clean)}},400);
+  UI.onKey=()=>true})}
+
+/* ═════════ 장풍운전 덧붙인 놀이(교사 의견 2026-10-19 “게임 요소가 너무 하나”) ═════════
+   flagGame  오방 깃발: 북이 울리는 차례대로 다섯 방위 깃발을 따라 올린다 (풀이본 “장대에 올라 오방의 깃발을 움직여”)
+   seamGame  옷깃 실밥 뜯기: 손가락(마우스)으로 실밥을 그어 하나씩 끊는다 (풀이본 “옷깃을 뜯어 보니”)
+   실패해도 막히지 않는다. 자동 진행기는 [data-next] 단추를 누른다. */
+function jOpen(html){UI.modal=true;if(typeof setBodyTalking==="function")setBodyTalking(true);const v=document.createElement("div");v.className="veil";v.innerHTML=`<div class="sheet gm" style="text-align:center">${html}</div>`;document.getElementById("ui").appendChild(v);return v}
+function jClose(v){v.remove();UI.modal=false;UI.onKey=null;if(typeof setBodyTalking==="function")setBodyTalking(false)}
+function flagGame(){return new Promise(res=>{
+  const F=[["청","#2f6db5","동"],["적","#c0392b","남"],["황","#d4a017","가운데"],["백","#f4f1ea","서"],["흑","#2b2b33","북"]];
+  const v=jOpen(`<span class="eb">장대</span><h2>오방의 깃발을 움직여라</h2><p class="note">북이 울리는 차례대로 깃발이 번쩍여요. 다 울리고 나면 같은 차례로 깃발을 올리세요. 세 번 맞히면 군사가 움직여요.</p>
+    <div id="fgRow" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0">${F.map(([n,c,d],i)=>`<button class="btn" data-f="${i}" style="width:62px;height:86px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:3px solid var(--ink2);background:#fff"><i style="display:block;width:34px;height:40px;background:${c};border:2px solid #1d1813;clip-path:polygon(0 0,100% 15%,100% 85%,0 100%)"></i><b style="font-size:13px">${n}</b><small style="font-size:10px;color:var(--muted)">${d}</small></button>`).join("")}</div>
+    <div class="st" id="fgSt">북소리를 들어라…</div>`);
+  const btns=[...v.querySelectorAll("[data-f]")],st=v.querySelector("#fgSt");let round=0,seq=[],pos=0,showing=true;const LEN=[3,4,5];
+  const lit=(i,on)=>{btns[i].style.background=on?"#fff3a0":"#fff";btns[i].style.transform=on?"translateY(-6px)":""};
+  const mark=()=>{btns.forEach(b=>b.removeAttribute("data-next"));if(!showing&&pos<seq.length)btns[seq[pos]].setAttribute("data-next","1")};
+  const show=async()=>{showing=true;mark();st.textContent="북소리를 들어라… (차례 "+(round+1)+"/3)";await sleep(500);
+    for(const i of seq){lit(i,true);if(typeof sfx==="function")sfx("drum");await sleep(520);lit(i,false);await sleep(180)}
+    showing=false;pos=0;st.textContent="이제 같은 차례로 깃발을 올려라 (0/"+seq.length+")";mark()};
+  const start=()=>{seq=Array.from({length:LEN[round]},()=>Math.floor(Math.random()*5));show()};
+  v.addEventListener("click",async e=>{const b=e.target.closest("[data-f]");if(!b||showing)return;const i=+b.dataset.f;lit(i,true);setTimeout(()=>lit(i,false),180);
+    if(i===seq[pos]){pos++;if(typeof sfx==="function")sfx("click");st.textContent="이제 같은 차례로 깃발을 올려라 ("+pos+"/"+seq.length+")";mark();
+      if(pos>=seq.length){if(typeof sfx==="function")sfx("correct");round++;if(round>=3){st.textContent="오방의 깃발이 일제히 움직인다!";showing=true;mark();setTimeout(()=>{jClose(v);res()},900)}else{st.textContent="좋다! 다음 북소리";showing=true;mark();setTimeout(start,700)}}}
+    else{if(typeof sfx==="function")sfx("wrong");st.textContent="깃발이 어긋났다. 북소리를 다시 들어라";showing=true;mark();setTimeout(show,800)}});
+  UI.onKey=()=>true;setTimeout(start,300)})}
+function seamGame(){return new Promise(res=>{const W=300,H=150,N=8;
+  const v=jOpen(`<span class="eb">낡은 옷</span><h2>옷깃의 실밥을 뜯어라</h2><p class="note">옷깃을 따라 실밥이 촘촘해요. 손가락(마우스)으로 실밥을 그어 하나씩 끊으세요. ‘한 땀 뜯기’ 단추로도 돼요.</p>
+    <canvas width="${W}" height="${H}" style="width:100%;max-width:480px;border:2px solid var(--ink2);touch-action:none;display:block;margin:10px auto"></canvas>
+    <div class="row"><button class="btn" data-next>한 땀 뜯기</button></div><div class="st" id="smSt">남은 실밥 ${N}</div>`);
+  const c=v.querySelector("canvas"),g=c.getContext("2d"),st=v.querySelector("#smSt");const S=Array.from({length:N},(_,i)=>({x:40+i*31,y:78+Math.sin(i*1.3)*4,cut:0}));let alive=true,last=null;
+  const draw=()=>{if(!alive)return;g.fillStyle="#7a6a52";g.fillRect(0,0,W,H);for(let y=0;y<H;y+=4){g.fillStyle=y%8?"#837359":"#75654c";g.fillRect(0,y,W,2)}
+    g.fillStyle="#6b5a42";g.beginPath();g.moveTo(10,50);g.lineTo(W-10,50);g.lineTo(W-30,106);g.lineTo(30,106);g.closePath();g.fill();
+    for(const s of S){if(s.cut){g.fillStyle="#d9c49c";g.fillRect(s.x-6,s.y-1,4,2);g.fillRect(s.x+3,s.y-1,4,2);continue}g.strokeStyle="#efe3c6";g.lineWidth=2;g.beginPath();g.moveTo(s.x-7,s.y-6);g.lineTo(s.x+7,s.y+6);g.moveTo(s.x+7,s.y-6);g.lineTo(s.x-7,s.y+6);g.stroke()}
+    if(S.every(s=>s.cut)){g.fillStyle="#c9a24f";g.fillRect(W/2-14,82,28,18);g.fillStyle="#1d1813";g.fillRect(W/2-14,82,28,2)}
+    requestAnimationFrame(draw)};draw();
+  const cutAt=(x,y)=>{for(const s of S)if(!s.cut&&Math.hypot(s.x-x,s.y-y)<11){s.cut=1;if(typeof sfx==="function")sfx("swish");upd()}};
+  const upd=()=>{const n=S.filter(s=>!s.cut).length;st.textContent=n?"남은 실밥 "+n:"옷깃이 벌어졌다. 안에 무언가 있다!";if(!n&&alive){alive=false;setTimeout(()=>{jClose(v);res()},1000)}};
+  const pt=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]};
+  c.addEventListener("pointerdown",e=>{c.setPointerCapture(e.pointerId);last=pt(e);cutAt(...last)});
+  c.addEventListener("pointermove",e=>{if(!last)return;const p=pt(e);for(let k=0;k<=6;k++)cutAt(last[0]+(p[0]-last[0])*k/6,last[1]+(p[1]-last[1])*k/6);last=p});
+  c.addEventListener("pointerup",()=>last=null);
+  v.querySelector("[data-next]").addEventListener("click",()=>{const s=S.find(x=>!x.cut);if(s){s.cut=1;if(typeof sfx==="function")sfx("swish");upd()}});
+  UI.onKey=e=>{if(["Space","KeyE","Enter"].includes(e.code)){const s=S.find(x=>!x.cut);if(s){s.cut=1;upd()}}return true}})}
+
 /* ══════════════ 장풍운 편 ══════════════ */
 /* @숫자 는 현대어 풀이본(jang/mod.txt)의 그 줄을 글자 그대로 가져온다 (build.js 가 바꿔 넣음). 손으로 옮겨 적지 않는다. */
 /* S([[누구,글,이름,속마음]…]) : 풀이본 문장을 차례로 보여 줌. "n"은 서술. 함수가 끼어 있으면 그 자리에서 실행 */
@@ -2542,7 +2653,7 @@ CHS.pung[3]={mood:"pyong",
 async function p3Clown(){
   const F=G.f;if(F.join)return say("clown","어이, 새내기! 장단 놓치지 말게.");F.join=1;
   await S([["n","ᄒᆞ고 광ᄃᆡ 등더러 왈\u0002광대들에게 말했다."],["pwander","나도 노름ᄒᆞ더니 한가지로 다니고져 ᄒᆞ노라\u0002나도 재주를 부리던 사람이니 당신들과 함께 다니고 싶소."],["n","ᄒᆞ니 광ᄃᆡ 무리 허락ᄒᆞ고 노름을 시기니\u0002광대들은 허락하고 재주를 보여 달라고 하였다."]]);
-  await timing(0,{eb:"놀이판",title:"춤과 재주를 보여라",desc:"표시가 붉은 칸 안에 들어왔을 때 누르세요."});sfx("cheer");
+  await musicPlay({eb:"놀이판",title:"장단에 맞춰 춤과 재주를",desc:"광대들의 꽹과리 장단에 맞춰 재주를 부려 보세요.",inst:"kkwaeng",btn:"재주 부리기",bpm:110,base:440,song:[[0,1,0],[1,1,1],[2,1,2],[2.5,1,2],[3,1,0],[4,1,1],[5,1,0],[6,1,2],[6.5,1,2],[7,1,1],[8,1,0],[9,1,2],[10,1,1],[11,1,0],[12,1,0]],end:["구경꾼들이 환호한다","구경꾼들이 박수를 친다","엉성해도 구경꾼들이 웃는다"]});sfx("cheer");
   await S([["n","풍운이 춤추며 온갓 즛슬 ᄒᆞᆫᄃᆡ 광ᄃᆡ 무리 조히 녀겨 ᄃᆞ리고 다니며 잘 먹이니\u0002풍운이 춤을 추며 여러 가지 재주를 보이자 광대들이 마음에 들어 하여 함께 데리고 다니며 잘 먹였다."],["n","몸이 비록 쳔ᄒᆞᄂᆞ 구ᄎᆞᄒᆞ미 업더라.\u0002몸은 비록 천한 광대 무리에 섞였으나 굶주리거나 곤궁할 일은 없었다."],["n","이런고로 셔쥬 구계촌의 니ᄅᆞ니\u0002그렇게 다니다 서주 구계촌에 도착하였다."],["n","인ᄀᆡ 즐비ᄒᆞ고 공후거족이 만히 ᄉᆞᄂᆞᆫ지라.\u0002그곳에는 집들이 즐비하였고 높은 벼슬을 지낸 큰 집안이 많았다."],["n","그곳의셔 노름을 ᄇᆡ셜ᄒᆞ엿더니\u0002광대들이 그곳에서 놀이판을 벌였다."]]);
   setObj("누각에서 구경하던 재상이 부른다. 가 보자 (북동쪽 기와집)");
 }
@@ -2643,7 +2754,7 @@ async function p4Emp(){
 }
 async function p4Flags(){
   const F=G.f;if(!F.plan||F.flag)return NR("대원수의 오방 깃발이다.");F.flag=1;
-  await timing(0,{eb:"장대",title:"오방의 깃발을 움직여라",desc:"표시가 붉은 칸 안에 들어왔을 때 누르세요."});sfx("drum");sfx("boom");G.shake=4;
+  await flagGame();sfx("drum");sfx("boom");G.shake=4;
   await S([["n","원ᄉᆔ 장ᄃᆡ의 올ᄂᆞ 오방긔치ᄅᆞᆯ 두루니\u0002대원수가 지휘대에 올라 오방 기치를 휘두르며 지휘했다."],["n","젼후좌우 ᄃᆡ진이 일시의 응포ᄒᆞ고 크게 엄살ᄒᆞ니\u0002지휘에 맞춰 전후좌우의 대진이 일시에 대포를 쏘고 갑자기 습격하여 죽이자,"],["n","번달이 그 계교의 ᄲᆞ진 쥴 알고 급히 군ᄉᆞᄅᆞᆯ 물니더니\u0002번달이 대원수의 계교에 빠진 줄 알고 급히 군사를 물렸다."],["n","원ᄉᆔ ᄯᅩ 북을 울니고 긔ᄅᆞᆯ 둘너 젹병을 즛치니\u0002대원수가 또 북을 울리고 기를 휘둘러 적병을 마음대로 마구 짓이겼다."]]);
   const sols=spawnFoes(3,[[me().tx+3,13],[me().tx+4,14],[me().tx+3,15],[me().tx+5,12],[me().tx+4,12]],"foe","번국 군사");
   tip("적에게 다가가 E·Space(또는 擊 단추)로 치세요. 붉은 느낌표가 뜨면 곧 덤벼드니 비켜서세요.");
@@ -2934,7 +3045,7 @@ async function k2Cell(){
   await S([["n","일일은 쇼졔 협실노 드러가 실셩쳬읍ᄒᆞᆯ ᄉᆡ\u0002어느 날 경패가 방에서 크게 울고 있었다."],["n","계원이 문을 열고 드러가니 쇼졔 남ᄌᆞ의 옷슬 만지며 우다가 감초거ᄂᆞᆯ\u0002계원이 문을 열고 들어가 보니 경패가 남자의 낡은 옷을 만지며 울다가 급히 감추었다."],["n","계원이 문왈\u0002계원이 물었다."],["yangnun","그거시 무어시완ᄃᆡ 만지며 슬허ᄒᆞᄂᆞ뇨.\u0002그것이 무엇이기에 만지며 그토록 슬피 우느냐?","계원"],["n","쇼졔 그이지 못ᄒᆞ여 장ᄉᆡᆼ의 ᄉᆞ연을 니ᄅᆞ니\u0002경패는 더 이상 숨기지 못하고 풍운과의 사연을 이야기하였다."],["n","계원이 ᄌᆞ시보ᄆᆡ 풍운의 옷 갓거ᄂᆞᆯ\u0002계원이 옷을 자세히 보니 자신의 아들 풍운의 옷과 같았다."],["n","문득 놀ᄂᆞ 그 옷슬 가지고 쇼져로 더브러 나와 졔승을 ᄃᆡᄒᆞ여 왈\u0002깜짝 놀라 옷을 가지고 밖으로 나와 여러 승려 앞에서 경패에게 말했다."]]);await give(me(),g,"jacket");
   await S([["yangnun","셰상의 고이ᄒᆞᆫ 일도 닛도다. 이 옷시 ᄂᆡ ᄋᆞ들 풍운을 칠 셰의 지어 닙힌 옷시라. 비록 날가시ᄂᆞ 나의 슈품을 모르리오. 낭ᄌᆞ의 가군이 어ᄃᆡ 닛다 ᄒᆞ더뇨.\u0002세상에 참으로 기이한 일도 있구나. 이 옷은 내가 아들 풍운이 일곱 살 때 지어 입힌 옷이다. 비록 오래되고 낡았지만 내 손으로 만든 물건을 내가 어찌 모르겠느냐? 낭자의 남편은 어디에 있다고 하더냐?","계원"],["n","쇼졔왈\u0002경패가 대답하였다."],["gp","닛ᄂᆞᆫ 곳은 모로되 그 부친은 장시랑이라 ᄒᆞ더이다.\u0002지금 어디 있는지는 모르지만 그의 아버지가 장 시랑이라고 하였습니다."],["n","계원이 ᄃᆡ경왈\u0002계원이 크게 놀랐다."],["yangnun","이ᄂᆞᆫ 명ᄇᆡᆨ무의로다. 풍운이 칠셰의 장도ᄉᆞ의게 상을 뵌즉 여ᄎᆞ여ᄎᆞ ᄒᆞ기로 시랑이 친필노 ᄉᆡᆼ월일시ᄅᆞᆯ 젹어 금낭의 너허 옷 속의 너허더니 ᄯᅥ혀보라. 만일 이시면 낭ᄌᆞᄂᆞᆫ 나의 며ᄂᆞ리라\u0002그렇다면 의심할 것이 없구나. 풍운이 일곱 살 때 장 도사에게 관상을 보였는데 도사가 이러이러한 말을 하였다. 그래서 시랑이 직접 풍운의 생년월일시를 써 금낭에 넣고 옷깃 속에 감추었다. 옷을 뜯어 보아라. 그것이 있다면 낭자는 바로 내 며느리다.","계원"]]);
   await must("gpnun","계원이 옷을 뜯어 보라고 한다.",["남편이 준 증표이니 뜯을 수 없다고 한다.","옷깃을 뜯어 본다."],1,"풀이본에서는 옷깃을 뜯어 보아요. 그 속에 든 것이 두 사람의 사이를 밝혀 줘요.");
-  await timing(0,{eb:"낡은 옷",title:"옷깃의 실밥을 뜯어라",desc:"표시가 붉은 칸 안에 들어왔을 때 누르세요."});sfx("swish");await S([["n","ᄒᆞ고 ᄯᅥ혀본즉 과연 드러거ᄂᆞᆯ\u0002옷깃을 뜯어 보니 과연 금낭이 들어 있었다."]]);await getItem("pouch");meet("s_pouch");holdAdd(g,"pouch");F.found=1;g.name="양 부인";G.flash=0.6;sfx("heal");setMood("home");
+  await seamGame();sfx("swish");await S([["n","ᄒᆞ고 ᄯᅥ혀본즉 과연 드러거ᄂᆞᆯ\u0002옷깃을 뜯어 보니 과연 금낭이 들어 있었다."]]);await getItem("pouch");meet("s_pouch");holdAdd(g,"pouch");F.found=1;g.name="양 부인";G.flash=0.6;sfx("heal");setMood("home");
   await S([["n","게원이 낭ᄌᆞᄅᆞᆯ 안고 통곡왈\u0002계원은 경패를 끌어안고 통곡하였다."],["yangnun","풍운의 ᄉᆞᄉᆡᆼ을 몰나 쥬야 셜워ᄒᆞ더니 오날날 고식이 맛ᄂᆞ니 이ᄂᆞᆫ 하ᄂᆞᆯ이 ᄉᆞᆲ피시미라\u0002풍운이 살았는지 죽었는지 몰라 밤낮으로 슬퍼하였는데 오늘 며느리를 만났으니 이는 하늘께서 돌보신 것이다.","양 부인"],["n","ᄒᆞ고 이후로붓터 고식이 시랑부ᄌᆞ 맛ᄂᆞ기ᄅᆞᆯ 불젼의 츅원ᄒᆞ더라.\u0002그 뒤로 두 사람은 함께 불전에서 장 시랑 부자와 다시 만나기를 빌었다."]]);meet("yang");trait("token");
   tip("경패가 지닌 낡은 옷, 그 옷깃 속의 금낭이 시어머니와 며느리를 만나게 했어요. 풍운이 어릴 때 아버지가 감추어 둔 바로 그 금낭이에요.");
   await toNext("제2장 달아나 단원으로",["호씨가 경패를 호현에게 다시 시집보내려 한다.","따르는 척 내일로 미루고 아버지의 편지를 열어 본다.","자란과 함께 밤에 달아나고, 꿈에 아버지가 길을 일러 준다.","단원 승당에서 계원의 제자가 된다.","낡은 옷깃 속의 금낭으로 계원이 시어머니임을 안다."]);
